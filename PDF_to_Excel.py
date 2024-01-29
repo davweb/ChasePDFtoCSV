@@ -26,34 +26,36 @@ def find_transactions(text):
 
     return transactions
 
-#main
 
-active_folder_path = 'Active'
-output_path = 'Output'
-destination_folder = 'Processed'
+def main():
+    active_folder_path = 'Active'
+    output_path = 'Output'
+    destination_folder = 'Processed'
 
+    active_files = os.listdir(active_folder_path)
+    transactions = []
 
-active_files = os.listdir(active_folder_path)
-active_file_name = active_files[0]
-active_file_path = os.path.join(active_folder_path, active_file_name)
+    for active_file_name in active_files:
+        active_file_path = os.path.join(active_folder_path, active_file_name)
+        pdf_desired_text = get_pdf_text(active_file_path)
+        transactions += find_transactions(pdf_desired_text)
+        shutil.move(active_file_path, destination_folder)
 
-pdf_desired_text = get_pdf_text(active_file_path)
-transactions = find_transactions(pdf_desired_text)
+    transactions.sort()
 
-# Export the data to a CSV file
-today = transactions[0][0]
-year = today.year
-month = today.month
-DesiredCSVName = f"{year}-{month:02d}"
+    # Export the data to a CSV file
+    today = transactions[0][0]
+    year = today.year
+    month = today.month
+    DesiredCSVName = f"{year}-{month:02d}"
 
-output_file = fr"{output_path}/{DesiredCSVName}.csv"
+    output_file = fr"{output_path}/{DesiredCSVName}.csv"
 
-with open(output_file, 'w') as csvfile:
-    csv_writer = csv.writer(csvfile)
+    with open(output_file, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
 
-    for row in transactions:
-        csv_writer.writerow(row)
+        for row in transactions:
+            csv_writer.writerow(row)
 
-
-
-shutil.move(active_file_path, destination_folder)
+if __name__ == "__main__":
+    main()
