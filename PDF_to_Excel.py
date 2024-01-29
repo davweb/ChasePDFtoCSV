@@ -1,7 +1,7 @@
 import pdfplumber
 import os
 import re
-import pandas as pd
+import csv
 from datetime import datetime, timedelta
 import shutil
 
@@ -37,7 +37,11 @@ def isfloat(value):
 
 #main
 
-active_folder_path = 'D:/Chase Bank Statement/Active'
+active_folder_path = 'Active'
+output_path = 'Output'
+destination_folder = 'Processed'
+
+
 active_files = os.listdir(active_folder_path)
 active_file_name = active_files[0]
 active_file_path = os.path.join(active_folder_path, active_file_name)
@@ -56,7 +60,7 @@ for line in lines:
     elements = line.split()
     if elements[3].startswith('-'):
         continue  # Skip the current iteration and move to the next line
-    
+
     date_str = " ".join(elements[:3])
     date = datetime.strptime(date_str, '%d %b %Y').date()
     transaction_detail = " ".join(elements[3:-2])
@@ -69,15 +73,15 @@ for line in lines:
         transaction_detail = " ".join(elements[3:-1])
         amount = None
 
-    
+
     balancestr = elements[-1].lstrip('£')
     balancestr = balancestr.replace(',', '')
     if isfloat(balancestr):
         balance = float(balancestr)
     else:
         balance = None
-    
-    
+
+
 
    # Append the data to the respective lists
     dates.append(date)
@@ -85,25 +89,21 @@ for line in lines:
     amounts.append(amount)
     balances.append(balance)
 
-# Create a DataFrame from the extracted data
-data = {
-    'Date': dates,
-    'Transaction details': transaction_details,
-    'Amount': amounts,
-    'Balance': balances
-}
-df = pd.DataFrame(data)
 
-# Export the DataFrame to an Excel file
+# Export the DataFrame to a CSV file
 today = dates[0]
 year = today.year
 month = today.month
-DesiredExcelName = f"{year} {month:02d}"
-output_path = r"D:\Chase Bank Statement\Output"
+DesiredCSVName = f"{year}-{month:02d}"
 
-output_file = fr"{output_path}\{DesiredExcelName}.xlsx"
-df.to_excel(output_file, index=False)
+output_file = fr"{output_path}/{DesiredCSVName}.csv"
+
+with open(output_file, 'w') as csvfile:
+    csv_writer = csv.writer(csvfile)
+
+    for row in zip(dates, transaction_details, amounts, balances):
+        csv_writer.writerow(row)
 
 
-destination_folder = 'D:\Chase Bank Statement\Prcessed Raw PDF'
+
 shutil.move(active_file_path, destination_folder)
