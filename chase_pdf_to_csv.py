@@ -62,11 +62,11 @@ def main():
     output_path = args.output
     archive_path = args.archive
 
-    input_files = os.listdir(input_path)
+    statements = [os.path.join(input_path, input_file)
+                  for input_file in os.listdir(input_path) if input_file.endswith('.pdf')]
     account_transactions = defaultdict(list)
 
-    for input_file in input_files:
-        statement_pdf = os.path.join(input_path, input_file)
+    for statement_pdf in statements:
         pdf_text = get_pdf_text(statement_pdf)
         account_name = find_account_name(pdf_text)
         account_transactions[account_name] += find_transactions(pdf_text)
@@ -83,9 +83,9 @@ def main():
             csv_writer.writerows(transactions)
 
     if archive_path:
-        for input_file in input_files:
-            statement_pdf = os.path.join(input_path, input_file)
+        for statement_pdf in statements:
             shutil.move(statement_pdf, archive_path)
+
 
 if __name__ == "__main__":
     main()
