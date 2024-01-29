@@ -1,5 +1,6 @@
 """Convert Chase Statement PDFs to CSV files"""
 
+import argparse
 import csv
 from datetime import datetime
 import os
@@ -45,31 +46,46 @@ def find_account_name(text):
 def main():
     """Entry point"""
 
-    active_folder_path = 'Active'
-    output_path = 'Output'
-    destination_folder = 'Processed'
+    parser = argparse.ArgumentParser('Convert Chase Statement PDFs to CSV files')
+    parser.add_argument('-i', '--input',
+                        help='folder containing input PDFs',
+                        default='input', metavar='<folder>')
+    parser.add_argument('-o', '--output',
+                        help='folder for output CSVs',
+                        default='output', metavar='<folder>')
+    parser.add_argument('-a', '--archive',
+                        help='if specified move PDFs to this folder once processed',
+                        metavar='<folder>')
 
-    active_files = os.listdir(active_folder_path)
+    args = parser.parse_args()
+    input_path = args.input
+    output_path = args.output
+    archive_path = args.archive
+
+    input_files = os.listdir(input_path)
     account_transactions = defaultdict(list)
 
-    for active_file_name in active_files:
-        active_file_path = os.path.join(active_folder_path, active_file_name)
-        pdf_text = get_pdf_text(active_file_path)
+    for input_file in input_files:
+        statement_pdf = os.path.join(input_path, input_file)
+        pdf_text = get_pdf_text(statement_pdf)
         account_name = find_account_name(pdf_text)
         account_transactions[account_name] += find_transactions(pdf_text)
-        shutil.move(active_file_path, destination_folder)
 
     for account_name, transactions in account_transactions.items():
         transactions.sort()
 
         start_date = transactions[0][0]
         end_date = transactions[-1][0]
-        output_file = f'{output_path}/{account_name} - {start_date} to {end_date}.csv'
+        output_file = os.path.join(output_path, f'{account_name} - {start_date} to {end_date}.csv')
 
         with open(output_file, 'w', encoding='utf8') as csv_file:
             csv_writer = csv.writer(csv_file)
             csv_writer.writerows(transactions)
 
+    if archive_path:
+        for input_file in input_files:
+            statement_pdf = os.path.join(input_path, input_file)
+            shutil.move(statement_pdf, archive_path)
 
 if __name__ == "__main__":
     main()
