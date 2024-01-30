@@ -1,3 +1,4 @@
+# pylint: disable=broad-exception-caught
 """Convert Chase Statement PDFs to CSV files"""
 
 import argparse
@@ -20,8 +21,9 @@ def get_pdf_text(file_path):
     try:
         with pdfplumber.open(file_path) as pdf:
             return '\n'.join(page.extract_text() for page in pdf.pages)
-    except:
+    except BaseException:
         return None
+
 
 def find_transactions(text):
     """Find the transactions in the text of a Chase statement"""
@@ -52,8 +54,17 @@ def fatal_error(error):
     sys.exit(1)
 
 
-def main():
-    """Entry point"""
+def check_and_create_dir(path):
+    """Check if directory exists, creating it if possible"""
+
+    if not path.exists():
+        path.mkdir()
+    elif not path.is_dir():
+        fatal_error(f'"{path}" is not a directory.')
+
+
+def parse_arguments():
+    """Parse command line arguments"""
 
     parser = argparse.ArgumentParser('Convert Chase Statement PDFs to CSV files')
     parser.add_argument('-i', '--input',
@@ -67,23 +78,21 @@ def main():
                         metavar='<folder>')
 
     args = parser.parse_args()
-    input_path = Path(args.input)
-    output_path = Path(args.output)
-    archive_path = Path(args.archive) if args.archive else None
+    return Path(args.input), Path(args.output), Path(args.archive) if args.archive else None
+
+
+def main():
+    """Entry point"""
+
+    input_path, output_path, archive_path = parse_arguments()
 
     if not input_path.is_dir():
         fatal_error(f'"{input_path}" is not a directory.')
 
-    if not output_path.exists():
-        output_path.mkdir()
-    elif not output_path.is_dir():
-        fatal_error(f'"{output_path}" is not a directory.')
+    check_and_create_dir(output_path)
 
     if archive_path:
-        if not archive_path.exists():
-            archive_path.mkdir()
-        elif not archive_path.is_dir():
-            fatal_error(f'"{archive_path}" is not a directory.')
+        check_and_create_dir(archive_path)
 
     statements = [input_file for input_file in input_path.iterdir() if input_file.suffix.lower() == '.pdf']
 
@@ -125,7 +134,9 @@ def main():
         for statement_pdf in statements:
             statement_pdf.rename(archive_path / statement_pdf.name)
 
-    print(f'Processed {len(statements)} PDF file(s) and produced {len(account_transactions)} CSV file(s).')
+    print(f'Processed {len(statements)} PDF {'files' if len(statements) > 1 else 'file'} and produced {
+          len(account_transactions)} CSV {'files' if len(account_transactions) > 1 else 'file'}.')
+
 
 if __name__ == "__main__":
     main()
