@@ -3,9 +3,9 @@
 import argparse
 import csv
 from datetime import datetime
-import os
+from pathlib import Path
 import re
-import shutil
+import sys
 from collections import defaultdict
 import pdfplumber
 
@@ -17,9 +17,11 @@ TRANSACTION_PATTERN = re.compile(r'(\d{2} \w{3} \d{4})\s+(.*)\s+(\+|-)£([0-9,]+
 def get_pdf_text(file_path):
     """Get the text from PDF file"""
 
-    with pdfplumber.open(file_path) as pdf:
-        return '\n'.join(page.extract_text() for page in pdf.pages)
-
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            return '\n'.join(page.extract_text() for page in pdf.pages)
+    except:
+        return None
 
 def find_transactions(text):
     """Find the transactions in the text of a Chase statement"""
@@ -40,7 +42,14 @@ def find_account_name(text):
     """Find the Chase account name in the statement text"""
 
     match = ACCOUNT_NAME_PATTERN.search(text)
-    return match.group(1)
+    return match.group(1) if match else None
+
+
+def fatal_error(error):
+    """Display error message and exit"""
+
+    print(f'Error: {error}', file=sys.stderr)
+    sys.exit(1)
 
 
 def main():
@@ -58,25 +67,55 @@ def main():
                         metavar='<folder>')
 
     args = parser.parse_args()
-    input_path = args.input
-    output_path = args.output
-    archive_path = args.archive
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+    archive_path = Path(args.archive) if args.archive else None
 
-    statements = [os.path.join(input_path, input_file)
-                  for input_file in os.listdir(input_path) if input_file.endswith('.pdf')]
+    if not input_path.is_dir():
+        fatal_error(f'"{input_path}" is not a directory.')
+
+    if not output_path.exists():
+        output_path.mkdir()
+    elif not output_path.is_dir():
+        fatal_error(f'"{output_path}" is not a directory.')
+
+    if archive_path:
+        if not archive_path.exists():
+            archive_path.mkdir()
+        elif not archive_path.is_dir():
+            fatal_error(f'"{archive_path}" is not a directory.')
+
+    statements = [input_file for input_file in input_path.iterdir() if input_file.suffix.lower() == '.pdf']
+
+    if len(statements) == 0:
+        fatal_error(f'Did not find any PDF files in "{input_path}".')
+
     account_transactions = defaultdict(list)
 
     for statement_pdf in statements:
         pdf_text = get_pdf_text(statement_pdf)
+
+        if pdf_text is None:
+            fatal_error(f'Could not parse PDF File "{statement_pdf}".')
+
         account_name = find_account_name(pdf_text)
-        account_transactions[account_name] += find_transactions(pdf_text)
+
+        if account_name is None:
+            fatal_error(f'Could not find account details in PDF File "{statement_pdf}".')
+
+        transactions = find_transactions(pdf_text)
+
+        if len(transactions) == 0:
+            fatal_error(f'Could not find any transactions in PDF File "{statement_pdf}".')
+
+        account_transactions[account_name] += transactions
 
     for account_name, transactions in account_transactions.items():
         transactions.sort()
 
         start_date = transactions[0][0]
         end_date = transactions[-1][0]
-        output_file = os.path.join(output_path, f'{account_name} - {start_date} to {end_date}.csv')
+        output_file = output_path / f'{account_name} - {start_date} to {end_date}.csv'
 
         with open(output_file, 'w', encoding='utf8') as csv_file:
             csv_writer = csv.writer(csv_file)
@@ -84,8 +123,9 @@ def main():
 
     if archive_path:
         for statement_pdf in statements:
-            shutil.move(statement_pdf, archive_path)
+            statement_pdf.rename(archive_path / statement_pdf.name)
 
+    print(f'Processed {len(statements)} PDF file(s) and produced {len(account_transactions)} CSV file(s).')
 
 if __name__ == "__main__":
     main()
