@@ -78,13 +78,10 @@ def parse_arguments():
                         metavar='<folder>')
 
     args = parser.parse_args()
-    return Path(args.input), Path(args.output), Path(args.archive) if args.archive else None
 
-
-def main():
-    """Entry point"""
-
-    input_path, output_path, archive_path = parse_arguments()
+    input_path = Path(args.input)
+    output_path = Path(args.output)
+    archive_path = Path(args.archive) if args.archive else None
 
     if not input_path.is_dir():
         fatal_error(f'"{input_path}" is not a directory.')
@@ -94,48 +91,79 @@ def main():
     if archive_path:
         check_and_create_dir(archive_path)
 
+    return input_path, output_path, archive_path
+
+
+def parse_pdf_statement(statement_pdf):
+    """Parse a Chase PDF Statement and return account name and transactions"""
+
+    pdf_text = get_pdf_text(statement_pdf)
+
+    if pdf_text is None:
+        fatal_error(f'Could not parse PDF File "{statement_pdf}".')
+
+    account_name = find_account_name(pdf_text)
+
+    if account_name is None:
+        fatal_error(f'Could not find account details in PDF File "{statement_pdf}".')
+
+    transactions = find_transactions(pdf_text)
+
+    if len(transactions) == 0:
+        fatal_error(f'Could not find any transactions in PDF File "{statement_pdf}".')
+
+    return account_name, transactions
+
+
+def generate_filename(account_name, transactions):
+    """Generate a filename for the output file"""
+
+    start_date = transactions[0][0]
+    end_date = transactions[-1][0]
+    return f'{account_name} - {start_date} to {end_date}.csv'
+
+
+def write_csv(output_csv, transactions):
+    """Write transactions to a CSV file"""
+
+    with open(output_csv, 'w', encoding='utf8') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerows(transactions)
+
+
+def get_statement_files(input_path):
+    """Get a list of PDF files in a directory"""
+
     statements = [input_file for input_file in input_path.iterdir() if input_file.suffix.lower() == '.pdf']
 
     if len(statements) == 0:
         fatal_error(f'Did not find any PDF files in "{input_path}".')
 
-    account_transactions = defaultdict(list)
+    return statements
+
+
+def main():
+    """Entry point"""
+
+    input_path, output_path, archive_path = parse_arguments()
+    statements = get_statement_files(input_path)
+    all_transactions = defaultdict(list)
 
     for statement_pdf in statements:
-        pdf_text = get_pdf_text(statement_pdf)
+        account_name, statement_transactions = parse_pdf_statement(statement_pdf)
+        all_transactions[account_name] += statement_transactions
 
-        if pdf_text is None:
-            fatal_error(f'Could not parse PDF File "{statement_pdf}".')
-
-        account_name = find_account_name(pdf_text)
-
-        if account_name is None:
-            fatal_error(f'Could not find account details in PDF File "{statement_pdf}".')
-
-        transactions = find_transactions(pdf_text)
-
-        if len(transactions) == 0:
-            fatal_error(f'Could not find any transactions in PDF File "{statement_pdf}".')
-
-        account_transactions[account_name] += transactions
-
-    for account_name, transactions in account_transactions.items():
-        transactions.sort()
-
-        start_date = transactions[0][0]
-        end_date = transactions[-1][0]
-        output_file = output_path / f'{account_name} - {start_date} to {end_date}.csv'
-
-        with open(output_file, 'w', encoding='utf8') as csv_file:
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerows(transactions)
+    for account_name, account_transactions in all_transactions.items():
+        account_transactions.sort()
+        output_file = output_path / generate_filename(account_name, account_transactions)
+        write_csv(output_file, account_transactions)
 
     if archive_path:
         for statement_pdf in statements:
             statement_pdf.rename(archive_path / statement_pdf.name)
 
     print(f'Processed {len(statements)} PDF {'files' if len(statements) > 1 else 'file'} and produced {
-          len(account_transactions)} CSV {'files' if len(account_transactions) > 1 else 'file'}.')
+          len(all_transactions)} CSV {'files' if len(all_transactions) > 1 else 'file'}.')
 
 
 if __name__ == "__main__":
