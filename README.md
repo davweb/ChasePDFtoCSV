@@ -41,6 +41,7 @@ The command line options available to the script are shown below.
 | Option | Description | Default |
 | ------ | ------ | ------ |
 | `-h`, `--help` | Show the help message. | |
-  `-i <folder>`, `--input <folder>` | Folder containing input PDFs | `input` |
-  `-o <folder>`, `--output <folder>` | Folder for output CSVs | `output` |
-  `-a <folder>`, `--archive <folder>` | If specified move PDFs to this folder once processed |
+| `-i <dir>`, `--input <dir>` | Directory containing input PDFs | `input` |
+| `-o <dir>`, `--output <dir>` | Directory for output CSVs | `output` |
+| `-a <dir>`, `--archive <dir>` | If specified move PDFs to this Directory once processed | |
+| `-n`, `--no-header` | Do not add header row to the output | |

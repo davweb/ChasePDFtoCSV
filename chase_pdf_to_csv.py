@@ -68,20 +68,23 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser('Convert Chase Statement PDFs to CSV files')
     parser.add_argument('-i', '--input',
-                        help='folder containing input PDFs',
-                        default='input', metavar='<folder>')
+                        help='directory containing input PDFs',
+                        default='input', metavar='<dir>')
     parser.add_argument('-o', '--output',
-                        help='folder for output CSVs',
-                        default='output', metavar='<folder>')
+                        help='directory for output CSVs',
+                        default='output', metavar='<dir>')
     parser.add_argument('-a', '--archive',
-                        help='if specified move PDFs to this folder once processed',
-                        metavar='<folder>')
+                        help='if specified move PDFs to this directory once processed',
+                        metavar='<dir>')
+    parser.add_argument('-n', '--no-header', action='store_false',
+                        help='do not add header row to the output')
 
     args = parser.parse_args()
 
     input_path = Path(args.input)
     output_path = Path(args.output)
     archive_path = Path(args.archive) if args.archive else None
+    header = args.no_header
 
     if not input_path.is_dir():
         fatal_error(f'"{input_path}" is not a directory.')
@@ -91,7 +94,7 @@ def parse_arguments():
     if archive_path:
         check_and_create_dir(archive_path)
 
-    return input_path, output_path, archive_path
+    return input_path, output_path, archive_path, header
 
 
 def parse_pdf_statement(statement_pdf):
@@ -123,11 +126,15 @@ def generate_filename(account_name, transactions):
     return f'{account_name} - {start_date} to {end_date}.csv'
 
 
-def write_csv(output_csv, transactions):
+def write_csv(output_csv, transactions, header):
     """Write transactions to a CSV file"""
 
     with open(output_csv, 'w', encoding='utf8') as csv_file:
         csv_writer = csv.writer(csv_file)
+
+        if header:
+            csv_writer.writerow(['Date','Transaction details','Amount'])
+
         csv_writer.writerows(transactions)
 
 
@@ -145,7 +152,7 @@ def get_statement_files(input_path):
 def main():
     """Entry point"""
 
-    input_path, output_path, archive_path = parse_arguments()
+    input_path, output_path, archive_path, header = parse_arguments()
     statements = get_statement_files(input_path)
     all_transactions = defaultdict(list)
 
@@ -156,7 +163,7 @@ def main():
     for account_name, account_transactions in all_transactions.items():
         account_transactions.sort()
         output_file = output_path / generate_filename(account_name, account_transactions)
-        write_csv(output_file, account_transactions)
+        write_csv(output_file, account_transactions, header)
 
     if archive_path:
         for statement_pdf in statements:
