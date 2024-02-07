@@ -7,15 +7,18 @@ from datetime import datetime
 from pathlib import Path
 import re
 import sys
+from typing import NoReturn
 from collections import defaultdict
 import pdfplumber
 
+
+Transaction = tuple[datetime, str, str]
 
 ACCOUNT_NAME_PATTERN = re.compile(r'^(.*) statement Account number: \d{8}', re.M)
 TRANSACTION_PATTERN = re.compile(r'(\d{2} \w{3} \d{4})\s+(.*)\s+(\+|-)£([0-9,]+\.\d{2})\s-?£[0-9,]+\.\d{2}')
 
 
-def get_pdf_text(file_path):
+def get_pdf_text(file_path: Path) -> str | None:
     """Get the text from PDF file"""
 
     try:
@@ -25,7 +28,7 @@ def get_pdf_text(file_path):
         return None
 
 
-def find_transactions(text):
+def find_transactions(text: str) -> list[Transaction]:
     """Find the transactions in the text of a Chase statement"""
     transactions = []
 
@@ -40,21 +43,21 @@ def find_transactions(text):
     return transactions
 
 
-def find_account_name(text):
+def find_account_name(text: str) -> str | None:
     """Find the Chase account name in the statement text"""
 
     match = ACCOUNT_NAME_PATTERN.search(text)
     return match.group(1) if match else None
 
 
-def fatal_error(error):
+def fatal_error(error: str) -> NoReturn:
     """Display error message and exit"""
 
     print(f'Error: {error}', file=sys.stderr)
     sys.exit(1)
 
 
-def check_and_create_dir(path):
+def check_and_create_dir(path: Path) -> None:
     """Check if directory exists, creating it if possible"""
 
     if not path.exists():
@@ -63,7 +66,7 @@ def check_and_create_dir(path):
         fatal_error(f'"{path}" is not a directory.')
 
 
-def parse_arguments():
+def parse_arguments() -> tuple[Path, Path, Path | None, bool]:
     """Parse command line arguments"""
 
     parser = argparse.ArgumentParser('Convert Chase Statement PDFs to CSV files')
@@ -97,7 +100,7 @@ def parse_arguments():
     return input_path, output_path, archive_path, header
 
 
-def parse_pdf_statement(statement_pdf):
+def parse_pdf_statement(statement_pdf: Path) -> tuple[str, list[Transaction]]:
     """Parse a Chase PDF Statement and return account name and transactions"""
 
     pdf_text = get_pdf_text(statement_pdf)
@@ -118,7 +121,7 @@ def parse_pdf_statement(statement_pdf):
     return account_name, transactions
 
 
-def generate_filename(account_name, transactions):
+def generate_filename(account_name: str, transactions: list[Transaction]) -> str:
     """Generate a filename for the output file"""
 
     start_date = transactions[0][0]
@@ -126,19 +129,19 @@ def generate_filename(account_name, transactions):
     return f'{account_name} - {start_date} to {end_date}.csv'
 
 
-def write_csv(output_csv, transactions, header):
+def write_csv(output_csv: Path, transactions: list[Transaction], header: bool) -> None:
     """Write transactions to a CSV file"""
 
     with open(output_csv, 'w', encoding='utf8') as csv_file:
         csv_writer = csv.writer(csv_file)
 
         if header:
-            csv_writer.writerow(['Date','Transaction details','Amount'])
+            csv_writer.writerow(['Date', 'Transaction details', 'Amount'])
 
         csv_writer.writerows(transactions)
 
 
-def get_statement_files(input_path):
+def get_statement_files(input_path: Path) -> list[Path]:
     """Get a list of PDF files in a directory"""
 
     statements = [input_file for input_file in input_path.iterdir() if input_file.suffix.lower() == '.pdf']
@@ -149,12 +152,12 @@ def get_statement_files(input_path):
     return statements
 
 
-def main():
+def main() -> None:
     """Entry point"""
 
     input_path, output_path, archive_path, header = parse_arguments()
     statements = get_statement_files(input_path)
-    all_transactions = defaultdict(list)
+    all_transactions: dict[str, list[Transaction]] = defaultdict(list)
 
     for statement_pdf in statements:
         account_name, statement_transactions = parse_pdf_statement(statement_pdf)
